@@ -1,8 +1,8 @@
-import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service, Characteristic } from 'homebridge'
+import { API, Characteristic, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service } from 'homebridge'
 
-import { PLATFORM_NAME, PLUGIN_NAME } from './settings'
-import { HubspacePlatformAccessory } from './platformAccessory'
 import { HubSpace } from './hubspace'
+import { HubspacePlatformAccessory } from './platformAccessory'
+import { PLATFORM_NAME, PLUGIN_NAME } from './settings'
 
 /**
  * HomebridgePlatform
@@ -76,8 +76,8 @@ export class HubspaceHomebridgePlatform implements DynamicPlatformPlugin {
         this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName)
 
         // if you need to update the accessory.context then you should run `api.updatePlatformAccessories`. eg.:
-        // existingAccessory.context.device = device;
-        // this.api.updatePlatformAccessories([existingAccessory]);
+        existingAccessory.context.device = device
+        this.api.updatePlatformAccessories([existingAccessory])
 
         // create the accessory handler for the restored accessory
         // this is imported from `platformAccessory.ts`

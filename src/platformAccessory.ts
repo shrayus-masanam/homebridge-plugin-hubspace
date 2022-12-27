@@ -1,7 +1,11 @@
-import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge'
+import { CharacteristicValue, PlatformAccessory, Service } from 'homebridge'
 import { HubSpace, HubSpaceConfig } from './hubspace'
 
 import { HubspaceHomebridgePlatform } from './platform'
+
+function convertColorTemperature(temp: number): number {
+  return Math.floor(1000000 / temp)
+}
 
 /**
  * Platform Accessory
@@ -19,6 +23,7 @@ export class HubspacePlatformAccessory {
   private state = {
     on: false,
     brightness: 100,
+    temperature: 2500,
     mode: '',
     rgb: [0, 0, 0],
   }
@@ -59,6 +64,10 @@ export class HubspacePlatformAccessory {
       .onSet(this.setBrightness.bind(this))
       .onGet(this.getBrightness.bind(this))
 
+    this.service
+      .getCharacteristic(this.platform.Characteristic.ColorTemperature)
+      .onSet(this.setColorTemperature.bind(this))
+      .onGet(this.getColorTemperature.bind(this))
     // this.service.getCharacteristic(this.platform.Characteristic.Hue).onSet(this.setHue.bind(this))
     // this.service.getCharacteristic(this.platform.Characteristic.Saturation).onSet(this.setSaturation.bind(this))
 
@@ -167,8 +176,38 @@ export class HubspacePlatformAccessory {
     return brightness
   }
 
+  async setColorTemperature(value: CharacteristicValue) {
+    const h = new HubSpace(this.hsConfig)
+    if (value === 0) {
+      return
+    }
+    await h.setDeviceFunctionState(
+      this.accessory.context.device.friendlyName,
+      'color-temperature',
+      convertColorTemperature(value as number),
+    )
+    this.state.temperature = convertColorTemperature(value as number)
+    this.platform.log.debug('Set Characteristic Temperature -> ', value)
+  }
+
+  async getColorTemperature(): Promise<CharacteristicValue> {
+    const h = new HubSpace(this.hsConfig)
+    const currentState = await h.getDeviceFunctionState(this.accessory.context.device.friendlyName, 'color-temperature')
+    const temperature = convertColorTemperature(Number(currentState.state?.value))
+
+    this.platform.log.debug('Get Characteristic Temperature -> ', temperature)
+
+    return temperature
+  }
   // async setHue(value: CharacteristicValue) {
-  //   this.platform.log.debug('Hue Set -> ', value)
+  //   const h = new HubSpace(this.hsConfig)
+  //   if (value === 0) {
+  //     return
+  //   }
+  //   await h.setDeviceFunctionState(this.accessory.context.device.friendlyName, 'brightness', value as number)
+  //   this.state.brightness = value as number
+
+  //   this.platform.log.debug('Set Characteristic Brightness -> ', value)
   // }
 
   // async setSaturation(value: CharacteristicValue) {

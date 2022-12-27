@@ -2,7 +2,7 @@
   "private": false,
   "displayName": "Hubspace Homebridge Plugin",
   "name": "homebridge-plugin-hubspace",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Integration for home depot's hubspace devices",
   "license": "Apache-2.0",
   "author": {
