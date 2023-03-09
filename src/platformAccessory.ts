@@ -7,6 +7,42 @@ function convertColorTemperature(temp: number): number {
   return Math.floor(1000000 / temp)
 }
 
+function convertHue(hue: number): number {
+  return Math.floor(hue / 360);
+}
+
+// https://stackoverflow.com/a/17243070
+function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
+  h /= 360;
+  s /= 100;
+  v /= 100;
+
+  var r, g, b, i, f, p, q, t;
+  /*if (arguments.length === 1) {
+      s = h.s, v = h.v, h = h.h;
+  }*/
+  i = Math.floor(h * 6);
+  f = h * 6 - i;
+  p = v * (1 - s);
+  q = v * (1 - f * s);
+  t = v * (1 - (1 - f) * s);
+  switch (i % 6) {
+    case 0: r = v, g = t, b = p; break;
+    case 1: r = q, g = v, b = p; break;
+    case 2: r = p, g = v, b = t; break;
+    case 3: r = p, g = q, b = v; break;
+    case 4: r = t, g = p, b = v; break;
+    case 5: r = v, g = p, b = q; break;
+  }
+  /*return {
+      r: Math.round(r * 255),
+      g: Math.round(g * 255),
+      b: Math.round(b * 255)
+  };*/
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+
 /**
  * Platform Accessory
  * An instance of this class is created for each accessory your platform registers
@@ -23,9 +59,11 @@ export class HubspacePlatformAccessory {
   private state = {
     on: false,
     brightness: 100,
-    temperature: 2500,
+    //temperature: 2500,
     mode: '',
-    rgb: [0, 0, 0],
+    //rgb: [0, 0, 0],
+    hue: 0,
+    saturation: 0,
   }
 
   constructor(private readonly platform: HubspaceHomebridgePlatform, private readonly accessory: PlatformAccessory) {
@@ -36,10 +74,14 @@ export class HubspacePlatformAccessory {
       accountId: this.platform.config.accountId,
     }
     // set accessory information
-    this.accessory
+    /*this.accessory
       .getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(this.platform.Characteristic.Manufacturer, this.accessory.context.device.description.device.manufacturerName)
-      .setCharacteristic(this.platform.Characteristic.Model, this.accessory.context.device.description.device.model)
+      .setCharacteristic(this.platform.Characteristic.Model, this.accessory.context.device.description.device.model)*/
+    this.accessory.getService(this.platform.Service.AccessoryInformation)!
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'OpenRGB')
+      .setCharacteristic(this.platform.Characteristic.Model, 'RGB Device')
+      .setCharacteristic(this.platform.Characteristic.SerialNumber, '9876543210');
 
     // get the LightBulb service if it exists, otherwise create a new LightBulb service
     // you can create multiple services for each accessory
@@ -64,12 +106,23 @@ export class HubspacePlatformAccessory {
       .onSet(this.setBrightness.bind(this))
       .onGet(this.getBrightness.bind(this))
 
-    this.service
+    /*this.service
       .getCharacteristic(this.platform.Characteristic.ColorTemperature)
       .onSet(this.setColorTemperature.bind(this))
-      .onGet(this.getColorTemperature.bind(this))
-    // this.service.getCharacteristic(this.platform.Characteristic.Hue).onSet(this.setHue.bind(this))
+      .onGet(this.getColorTemperature.bind(this))*/
+
+    // register handlers for the Hue Characteristic
+    this.service
+      .getCharacteristic(this.platform.Characteristic.Hue)
+      .onSet(this.setHue.bind(this))
+      .onGet(this.getHue.bind(this))
     // this.service.getCharacteristic(this.platform.Characteristic.Saturation).onSet(this.setSaturation.bind(this))
+
+    // register handlers for the Saturation Characteristic
+    this.service.getCharacteristic(this.platform.Characteristic.Saturation)
+      .onSet(this.setSaturation.bind(this))
+      .onGet(this.getSaturation.bind(this));
+
 
     /**
      * Creating multiple services of the same type.
@@ -121,8 +174,10 @@ export class HubspacePlatformAccessory {
   async setOn(value: CharacteristicValue) {
     const hs = new HubSpace(this.hsConfig)
     await hs.setDeviceFunctionState(this.accessory.context.device.friendlyName, 'power', value ? 'on' : 'off')
+
     this.state.on = value as boolean
     this.platform.log.debug('Set Characteristic On ->', value)
+    //this.platform.log.debug(JSON.stringify(await hs.getDeviceFunctionStates(this.accessory.context.device.friendlyName)));
   }
 
   /**
@@ -176,7 +231,7 @@ export class HubspacePlatformAccessory {
     return brightness
   }
 
-  async setColorTemperature(value: CharacteristicValue) {
+  /*async setColorTemperature(value: CharacteristicValue) {
     const h = new HubSpace(this.hsConfig)
     if (value === 0) {
       return
@@ -198,7 +253,78 @@ export class HubspacePlatformAccessory {
     this.platform.log.debug('Get Characteristic Temperature -> ', temperature)
 
     return temperature
+  }*/
+
+  async setHue(value: CharacteristicValue) {
+    let saturation = this.state.saturation;
+    if (Number.isNaN(value)) {
+      value = 0
+    }
+    //await h.setDeviceFunctionState(this.accessory.context.device.friendlyName, 'hue', convertHue(value as number) as number)
+    let [r, g, b] = hsvToRgb(value as number, saturation, 100)
+    if ((r === 0 && g === 0 && b === 0) || (saturation == 0 && value == 0)) {
+      r = 255, g = 255, b = 255
+    }
+    //this.platform.log.debug(`Converted ${value} hue and ${saturation} saturation to -> `, r, g, b)
+    const h = new HubSpace(this.hsConfig)
+    await h.setDeviceFunctionState(this.accessory.context.device.friendlyName, 'color-rgb', {
+      "color-rgb": {
+        "r": r,
+        "b": b,
+        "g": g
+      }
+    })
+    this.state.hue = convertHue(value as number)
+
+    this.platform.log.debug('Set Characteristic Hue -> ', value)
   }
+
+  async getHue(): Promise<CharacteristicValue> {
+    const h = new HubSpace(this.hsConfig);
+    const currentState = await h.getDeviceFunctionState(this.accessory.context.device.friendlyName, 'hue')
+    const hue = convertHue(currentState.state?.value)
+
+    this.platform.log.debug('Get Characteristic Hue -> ', hue)
+
+    return hue
+  }
+
+  async setSaturation(value: CharacteristicValue) {
+    //const h = new HubSpace(this.hsConfig)
+    if (Number.isNaN(value)) {
+      value = 0
+    }
+    //await h.setDeviceFunctionState(this.accessory.context.device.friendlyName, 'saturation', convertSaturation(value as number))
+
+    /*let [r, g, b] = hsvToRgb(this.state.hue, value as number, 100)
+    if ((r === 0 && g === 0 && b === 0) || (this.state.hue = 0 && value == 0)) {
+      r = 255, g = 255, b = 255
+    }
+    await h.setDeviceFunctionState(this.accessory.context.device.friendlyName, 'color-rgb', {
+      "color-rgb": {
+        "r": r,
+        "b": b,
+        "g": g
+      }*
+    })*/
+
+    this.state.saturation = value as number
+    this.platform.log.debug('Set Characteristic Saturation -> ', value)
+  }
+
+
+  async getSaturation(): Promise<CharacteristicValue> {
+    const h = new HubSpace(this.hsConfig)
+    const currentState = await h.getDeviceFunctionState(this.accessory.context.device.friendlyName, 'saturation')
+    const saturation = currentState.state?.value || this.state.saturation //convertSaturation(currentState.state?.value)
+
+    this.platform.log.debug('Get Characteristic Saturation -> ', saturation)
+
+    return saturation
+    //return 100;
+  }
+
+
   // async setHue(value: CharacteristicValue) {
   //   const h = new HubSpace(this.hsConfig)
   //   if (value === 0) {
